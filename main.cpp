@@ -6,11 +6,23 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <chrono>
+#include <thread>
 
-void clearScreen() {
+/**
+ * Clears the console screen.
+ */
+void clearScreen()
+{
     std::cout << "\033[2J\033[1;1H";
 }
 
+/**
+ * Saves the votes to a file.
+ *
+ * @param votes The map containing the candidate names and their vote counts.
+ * @throws std::runtime_error If unable to open the file for saving votes.
+ */
 void saveVotes(const std::map<std::string, int>& votes) {
     std::ofstream file("votes.txt");
     if (!file) {
@@ -22,8 +34,15 @@ void saveVotes(const std::map<std::string, int>& votes) {
     }
 
     file.close();
+    
 }
 
+/**
+ * Reads the votes from a file.
+ *
+ * @return The map containing the candidate names and their vote counts.
+ * @throws std::runtime_error If unable to open the file for reading votes.
+ */
 std::map<std::string, int> readVotes() {
     std::map<std::string, int> votes;
     std::ifstream file("votes.txt");
@@ -45,101 +64,11 @@ std::map<std::string, int> readVotes() {
     return votes;
 }
 
-int getNumCandidates() {
-    int numCandidates;
-    while (true) {
-        std::cout << "Enter the number of candidates: ";
-        if (std::cin >> numCandidates && numCandidates > 0) {
-            break;
-        }
-        else {
-            std::cout << "Invalid input. Please enter a positive integer." << std::endl;
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        }
-    }
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');  // Ignore newline character
-    return numCandidates;
-}
-
-std::vector<std::string> getCandidateNames(int numCandidates) {
-    std::vector<std::string> candidates(numCandidates);
-    for (int i = 0; i < numCandidates; ++i) {
-        std::cout << "Enter the name of candidate " << (i + 1) << ": ";
-        std::string name;
-        std::getline(std::cin, name);
-        if (name.empty()) {
-            std::cout << "Candidate name cannot be empty. Please try again." << std::endl;
-            --i; // Retry for the same candidate
-            continue;
-        }
-        candidates[i] = name;
-    }
-    return candidates;
-}
-
-void displayVotingMenu(const std::vector<std::string>& candidates) {
-    std::cout << "\n===== Election Voting Menu =====" << std::endl;
-    for (int i = 0; i < candidates.size(); ++i) {
-        std::cout << (i + 1) << ". " << candidates[i] << std::endl;
-    }
-    std::cout << (candidates.size() + 1) << ". Display Vote Count" << std::endl;
-    std::cout << (candidates.size() + 2) << ". Exit" << std::endl;
-}
-
-void displayVoteCount(const std::map<std::string, int>& votes) {
-    std::cout << "\n===== Current Vote Count =====" << std::endl;
-    for (const auto& pair : votes) {
-        std::cout << pair.first << ": " << pair.second << std::endl;
-    }
-}
-
-void vote(std::map<std::string, int>& votes, const std::vector<std::string>& candidates) {
-    int choice;
-    bool exitOptionChosen = false;
-
-    while (true) {
-        displayVotingMenu(candidates);  // Display the menu
-        std::cout << "\nEnter your choice: ";
-        if (std::cin >> choice && choice >= 1 && choice <= candidates.size()) {
-            votes[candidates[choice - 1]]++;
-            std::cout << "Vote registered for " << candidates[choice - 1] << std::endl;
-        }
-        else if (choice == (candidates.size() + 1)) {
-            displayVoteCount(votes);
-        }
-        else if (choice == (candidates.size() + 2)) {
-            exitOptionChosen = true;
-            break;
-        }
-        else {
-            std::cout << "Invalid choice. Please try again." << std::endl;
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        }
-    }
-
-    if (exitOptionChosen) {
-        try {
-            saveVotes(votes);
-            validateVotes(votes);
-            std::cout << "Votes validated." << std::endl;
-        }
-        catch (const std::exception& e) {
-            std::cerr << "An error occurred while saving votes: " << e.what() << std::endl;
-        }
-    }
-    else {
-        try {
-            saveVotes(votes);
-        }
-        catch (const std::exception& e) {
-            std::cerr << "An error occurred while saving votes: " << e.what() << std::endl;
-        }
-    }
-}
-
-
+/**
+ * Validates the votes against the saved votes.
+ *
+ * @param votes The map containing the candidate names and their vote counts.
+ */
 void validateVotes(const std::map<std::string, int>& votes) {
     try {
         std::map<std::string, int> savedVotes = readVotes();
@@ -163,6 +92,115 @@ void validateVotes(const std::map<std::string, int>& votes) {
     }
 }
 
+/**
+ * Gets the number of candidates from the user.
+ *
+ * @return The number of candidates.
+ */
+int getNumCandidates() {
+    int numCandidates;
+    while (true) {
+        std::cout << "Enter the number of candidates: ";
+        if (std::cin >> numCandidates && numCandidates > 0) {
+            break;
+        }
+        else {
+            std::cout << "Invalid input. Please enter a positive integer." << std::endl;
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+    }
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');  // Ignore newline character
+    return numCandidates;
+}
+
+/**
+ * Gets the names of the candidates from the user.
+ *
+ * @param numCandidates The number of candidates.
+ * @return A vector containing the candidate names.
+ */
+std::vector<std::string> getCandidateNames(int numCandidates) {
+    std::vector<std::string> candidates;
+    candidates.reserve(numCandidates);
+    for (int i = 0; i < numCandidates; ++i) {
+        std::cout << "Enter the name of candidate " << (i + 1) << ": ";
+        std::string name;
+        std::getline(std::cin, name);
+        if (name.empty()) {
+            std::cout << "Candidate name cannot be empty. Please try again." << std::endl;
+            --i; // Retry for the same candidate
+            continue;
+        }
+        candidates.emplace_back(name);
+    }
+    return candidates;
+}
+
+/**
+ * Displays the voting menu.
+ *
+ * @param candidates A vector containing the candidate names.
+ */
+void displayVotingMenu(const std::vector<std::string>& candidates) {
+    std::cout << "\n===== Election Voting Menu =====" << std::endl;
+    for (int i = 0; i < candidates.size(); ++i) {
+        std::cout << (i + 1) << ". " << candidates[i] << std::endl;
+    }
+    std::cout << (candidates.size() + 1) << ". Display Vote Count" << std::endl;
+    std::cout << (candidates.size() + 2) << ". Exit" << std::endl;
+}
+
+/**
+ * Displays the current vote count.
+ *
+ * @param votes The map containing the candidate names and their vote counts.
+ */
+void displayVoteCount(const std::map<std::string, int>& votes) {
+    std::cout << "\n===== Current Vote Count =====" << std::endl;
+    for (const auto& pair : votes) {
+        std::cout << pair.first << ": " << pair.second << std::endl;
+    }
+}
+
+/**
+ * Records the vote based on the user's choice.
+ *
+ * @param votes The map containing the candidate names and their vote counts.
+ * @param candidates A vector containing the candidate names.
+ */
+void vote(std::map<std::string, int>& votes, const std::vector<std::string>& candidates) {
+    int choice;
+   
+    while (true) {
+        clearScreen();
+        displayVotingMenu(candidates);  // Display the menu
+        std::cout << "\nEnter your choice: ";
+        if (std::cin >> choice && choice >= 1 && choice <= candidates.size()) {
+            votes[candidates[choice - 1]]++;
+            std::cout << "Vote registered for " << candidates[choice - 1] << std::endl;
+        }
+        else if (choice == (candidates.size() + 1)) {
+            clearScreen();
+            displayVoteCount(votes);
+            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        }
+        else if (choice == (candidates.size() + 2)) {
+            clearScreen();
+            break;
+        }
+        else {
+            std::cout << "Invalid choice. Please try again." << std::endl;
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+    }
+
+ }
+
+/**
+ * Runs the election voting process.
+ */
 void runElection() {
     clearScreen();
     int numCandidates = getNumCandidates();
@@ -182,11 +220,11 @@ void runElection() {
         votes[candidate] = 0;
     }
 
-    displayVotingMenu(candidates);
     vote(votes, candidates);
 
     try {
         saveVotes(votes);
+        std::cout << "Votes Saved to file\n";
         validateVotes(votes);
     }
     catch (const std::exception& e) {
@@ -194,7 +232,7 @@ void runElection() {
         std::cout << "Unable to save votes. Displaying the current vote count:" << std::endl;
         displayVoteCount(votes);
     }
-    validateVotes(votes);
+    
 }
 
 int main() {
@@ -202,4 +240,3 @@ int main() {
 
     return 0;
 }
-
